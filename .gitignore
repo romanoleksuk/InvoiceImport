@@ -427,3 +427,11 @@ FodyWeavers.xsd
 *.msm
 *.msp
 /.dotnet
+
+# Secrets and sensitive configuration - IMPORTANT: Never commit these!
+**/appsettings.Development.json
+**/appsettings.*.json
+!**/appsettings.json
+secrets.json
+*.key
+*.secret
