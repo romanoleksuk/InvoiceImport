@@ -1,0 +1,65 @@
+@using InvoiceImportBlazor.Models
+
+@if (ValidationResult != null && ValidationResult.Issues.Any())
+{
+    <div class="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+        <h3 class="text-sm font-semibold text-gray-700 uppercase mb-3">
+            Validation Issues (@ValidationResult.Issues.Count)
+        </h3>
+
+        <div class="space-y-2">
+            @foreach (var issue in ValidationResult.Issues.OrderByDescending(i => i.Severity))
+            {
+                <div class="flex items-start gap-2 p-2 rounded @GetIssueBgColor(issue.Severity)">
+                    <span class="text-lg">@GetIssueIcon(issue.Severity)</span>
+                    <div class="flex-1">
+                        <div class="text-sm font-medium @GetIssueTextColor(issue.Severity)">
+                            @issue.Field
+                        </div>
+                        <div class="text-xs text-gray-600 mt-1">
+                            @issue.Message
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public ValidationResult? ValidationResult { get; set; }
+
+    private string GetIssueBgColor(ValidationSeverity severity)
+    {
+        return severity switch
+        {
+            ValidationSeverity.Error => "bg-red-50 border border-red-200",
+            ValidationSeverity.Warning => "bg-yellow-50 border border-yellow-200",
+            ValidationSeverity.Info => "bg-blue-50 border border-blue-200",
+            _ => "bg-gray-50"
+        };
+    }
+
+    private string GetIssueTextColor(ValidationSeverity severity)
+    {
+        return severity switch
+        {
+            ValidationSeverity.Error => "text-red-800",
+            ValidationSeverity.Warning => "text-yellow-800",
+            ValidationSeverity.Info => "text-blue-800",
+            _ => "text-gray-800"
+        };
+    }
+
+    private string GetIssueIcon(ValidationSeverity severity)
+    {
+        return severity switch
+        {
+            ValidationSeverity.Error => "❌",
+            ValidationSeverity.Warning => "⚠️",
+            ValidationSeverity.Info => "ℹ️",
+            _ => "•"
+        };
+    }
+}

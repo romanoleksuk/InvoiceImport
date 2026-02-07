@@ -1,0 +1,510 @@
+@using System.Globalization
+@using InvoiceImportBlazor.Models
+
+<div class="bg-white border-t border-gray-200 h-full flex flex-col">
+    <div class="p-4 border-b border-gray-200 flex items-center justify-between gap-4">
+        <h2 class="text-lg font-semibold text-gray-900">Line Items</h2>
+
+        <div class="flex flex-wrap gap-2 justify-end">
+            <button
+                @onclick="AddRow"
+                class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-md transition">
+                Add Row
+            </button>
+            <button
+                @onclick="DuplicateSelected"
+                disabled="@(!SelectedRows.Any())"
+                class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium py-2 px-4 rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed">
+                📋 Duplicate
+            </button>
+            <button
+                @onclick="DeleteSelected"
+                disabled="@(!SelectedRows.Any())"
+                class="bg-red-100 hover:bg-red-200 text-red-700 text-sm font-medium py-2 px-4 rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed">
+                🗑️ Delete
+            </button>
+            <button
+                @onclick="DistributeRemainder"
+                class="bg-green-100 hover:bg-green-200 text-green-700 text-sm font-medium py-2 px-4 rounded-md transition"
+                title="Distribute rounding differences to selected line (or first line)">
+                ⚖️ Distribute Remainder
+            </button>
+        </div>
+    </div>
+
+    <div class="overflow-visible lg:overflow-auto flex-1">
+        <div class="lg:hidden p-3 space-y-3">
+            @foreach (var item in LineItems)
+            {
+                <div class="border border-gray-200 rounded-lg p-3 bg-white shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-semibold text-gray-500">Line Item</span>
+                        <input
+                            type="checkbox"
+                            checked="@SelectedRows.Contains(item.Id)"
+                            @onchange="() => ToggleRowSelection(item.Id)" />
+                    </div>
+
+                    <div class="space-y-2">
+                        <input type="text" @bind="item.Description" @bind:event="oninput" @onchange="() => NotifyLineItemsChanged()" class="w-full px-2 py-2 border border-gray-300 rounded text-sm" placeholder="Description" />
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="number" value="@GetQuantityValue(item)" @oninput="(e) => HandleQuantityInput(item, e.Value?.ToString())" class="w-full px-2 py-2 border border-gray-300 rounded text-sm" placeholder="Qty" />
+                            <input type="number" step="0.01" value="@item.UsdAmount" @oninput="(e) => HandleUsdAmountInput(item, e.Value?.ToString())" class="w-full px-2 py-2 border border-gray-300 rounded text-sm" placeholder="USD Amount" />
+                            <input type="number" step="0.0001" value="@item.ExchangeRate" @oninput="(e) => HandleRateInput(e.Value?.ToString())" disabled="@IsRateLocked" class="w-full px-2 py-2 border border-gray-300 rounded text-sm" placeholder="Rate" />
+                            <input type="number" step="0.01" value="@item.CadAmount" @oninput="(e) => HandleCadAmountInput(item, e.Value?.ToString())" class="w-full px-2 py-2 border border-gray-300 rounded text-sm bg-blue-50" placeholder="CAD Amount" />
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="text" @bind="item.GlAccount" @bind:event="oninput" @onchange="() => NotifyLineItemsChanged()" class="w-full px-2 py-2 border border-gray-300 rounded text-sm" placeholder="GL" />
+                            <input type="text" @bind="item.CostCenter" @bind:event="oninput" @onchange="() => NotifyLineItemsChanged()" class="w-full px-2 py-2 border border-gray-300 rounded text-sm" placeholder="Cost Center" />
+                            <input type="text" @bind="item.Project" @bind:event="oninput" @onchange="() => NotifyLineItemsChanged()" class="w-full px-2 py-2 border border-gray-300 rounded text-sm" placeholder="Project" />
+                            <input type="text" @bind="item.Job" @bind:event="oninput" @onchange="() => NotifyLineItemsChanged()" class="w-full px-2 py-2 border border-gray-300 rounded text-sm" placeholder="Job" />
+                            <input type="text" @bind="item.TaxCode" @bind:event="oninput" @onchange="() => NotifyLineItemsChanged()" class="w-full px-2 py-2 border border-gray-300 rounded text-sm" placeholder="Tax Code" />
+                            <input type="text" @bind="item.Notes" @bind:event="oninput" @onchange="() => NotifyLineItemsChanged()" class="w-full px-2 py-2 border border-gray-300 rounded text-sm" placeholder="Notes" />
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="hidden lg:block">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                    <tr>
+                        <th class="px-2 py-2 text-left w-8">
+                            <input
+                                type="checkbox"
+                                @onchange="ToggleSelectAll"
+                                checked="@(SelectedRows.Count == LineItems.Count && LineItems.Any())" />
+                        </th>
+                        <th class="px-2 py-2 text-left font-semibold text-gray-700 min-w-[220px]">Description</th>
+                        <th class="px-2 py-2 text-left font-semibold text-gray-700 w-20">Qty</th>
+                        <th class="px-2 py-2 text-left font-semibold text-gray-700 w-32">USD Amount</th>
+                        <th class="px-2 py-2 text-left font-semibold text-gray-700 w-28">Rate</th>
+                        <th class="px-2 py-2 text-left font-semibold text-gray-700 w-32">CAD Amount</th>
+                        <th class="px-2 py-2 text-left font-semibold text-gray-700 w-36">GL Account</th>
+                        <th class="px-2 py-2 text-left font-semibold text-gray-700 w-36">Cost Center</th>
+                        <th class="px-2 py-2 text-left font-semibold text-gray-700 w-36">Project</th>
+                        <th class="px-2 py-2 text-left font-semibold text-gray-700 w-36">Job</th>
+                        <th class="px-2 py-2 text-left font-semibold text-gray-700 w-28">Tax Code</th>
+                        <th class="px-2 py-2 text-left font-semibold text-gray-700 min-w-[180px]">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in LineItems)
+                    {
+                        <tr class="@GetRowClass(item.Id)">
+                            <td class="px-2 py-2">
+                                <input
+                                    type="checkbox"
+                                    checked="@SelectedRows.Contains(item.Id)"
+                                    @onchange="() => ToggleRowSelection(item.Id)" />
+                            </td>
+                            <td class="px-2 py-2">
+                                <input
+                                    type="text"
+                                    @bind="item.Description"
+                                    @bind:event="oninput"
+                                    @onchange="() => NotifyLineItemsChanged()"
+                                    class="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                    placeholder="Line description" />
+                            </td>
+                            <td class="px-2 py-2">
+                                <input
+                                    type="number"
+                                    value="@GetQuantityValue(item)"
+                                    @oninput="(e) => HandleQuantityInput(item, e.Value?.ToString())"
+                                    class="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                    placeholder="Qty" />
+                            </td>
+                            <td class="px-2 py-2">
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value="@item.UsdAmount"
+                                    @oninput="(e) => HandleUsdAmountInput(item, e.Value?.ToString())"
+                                    class="w-full px-2 py-1 border border-gray-300 rounded text-sm font-medium" />
+                            </td>
+                            <td class="px-2 py-2">
+                                <input
+                                    type="number"
+                                    step="0.0001"
+                                    value="@item.ExchangeRate"
+                                    @oninput="(e) => HandleRateInput(e.Value?.ToString())"
+                                    disabled="@IsRateLocked"
+                                    class="w-full px-2 py-1 border border-gray-300 rounded text-sm" />
+                            </td>
+                            <td class="px-2 py-2">
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value="@item.CadAmount"
+                                    @oninput="(e) => HandleCadAmountInput(item, e.Value?.ToString())"
+                                    class="w-full px-2 py-1 border border-gray-300 rounded text-sm font-medium bg-blue-50" />
+                            </td>
+                            <td class="px-2 py-2">
+                                <input
+                                    type="text"
+                                    @bind="item.GlAccount"
+                                    @bind:event="oninput"
+                                    @onchange="() => NotifyLineItemsChanged()"
+                                    class="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                    placeholder="GL" />
+                            </td>
+                            <td class="px-2 py-2">
+                                <input
+                                    type="text"
+                                    @bind="item.CostCenter"
+                                    @bind:event="oninput"
+                                    @onchange="() => NotifyLineItemsChanged()"
+                                    class="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                    placeholder="CC" />
+                            </td>
+                            <td class="px-2 py-2">
+                                <input
+                                    type="text"
+                                    @bind="item.Project"
+                                    @bind:event="oninput"
+                                    @onchange="() => NotifyLineItemsChanged()"
+                                    class="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                    placeholder="Project" />
+                            </td>
+                            <td class="px-2 py-2">
+                                <input
+                                    type="text"
+                                    @bind="item.Job"
+                                    @bind:event="oninput"
+                                    @onchange="() => NotifyLineItemsChanged()"
+                                    class="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                    placeholder="Job" />
+                            </td>
+                            <td class="px-2 py-2">
+                                <input
+                                    type="text"
+                                    @bind="item.TaxCode"
+                                    @bind:event="oninput"
+                                    @onchange="() => NotifyLineItemsChanged()"
+                                    class="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                    placeholder="Tax" />
+                            </td>
+                            <td class="px-2 py-2">
+                                <input
+                                    type="text"
+                                    @bind="item.Notes"
+                                    @bind:event="oninput"
+                                    @onchange="() => NotifyLineItemsChanged()"
+                                    class="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                    placeholder="Notes" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (!LineItems.Any())
+        {
+            <div class="text-center py-8 text-gray-500">
+                No line items yet. Click "Add Row" to get started.
+            </div>
+        }
+    </div>
+
+    @if (LineItems.Any())
+    {
+        <div class="p-4 bg-gray-50 border-t border-gray-200">
+            <div class="flex justify-end gap-8 text-sm font-semibold">
+                <div>
+                    <span class="text-gray-600">Total USD: </span>
+                    <span class="text-gray-900">$@TotalUsd.ToString("N2")</span>
+                </div>
+                <div>
+                    <span class="text-gray-600">Total CAD: </span>
+                    <span class="text-blue-600">$@TotalCad.ToString("N2")</span>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public List<LineItem> LineItems { get; set; } = new();
+
+    [Parameter]
+    public EventCallback<List<LineItem>> LineItemsChanged { get; set; }
+
+    [Parameter]
+    public decimal ExchangeRate { get; set; }
+
+    [Parameter]
+    public EventCallback<decimal> ExchangeRateChanged { get; set; }
+
+    [Parameter]
+    public bool IsRateLocked { get; set; }
+
+    private HashSet<string> SelectedRows { get; set; } = new();
+    private Dictionary<string, decimal> UnitPricesByRow { get; set; } = new();
+
+    private decimal TotalUsd => LineItems.Sum(i => i.UsdAmount);
+    private decimal TotalCad => LineItems.Sum(i => i.CadAmount);
+
+    protected override void OnParametersSet()
+    {
+        EnsureUnitPriceCache();
+    }
+
+    private async Task AddRow()
+    {
+        var newItem = new LineItem
+        {
+            ExchangeRate = ExchangeRate,
+            CadAmount = 0m
+        };
+
+        LineItems.Add(newItem);
+        UnitPricesByRow[newItem.Id] = 0m;
+
+        await NotifyLineItemsChanged();
+    }
+
+    private async Task DuplicateSelected()
+    {
+        var itemsToDuplicate = LineItems.Where(i => SelectedRows.Contains(i.Id)).ToList();
+        foreach (var item in itemsToDuplicate)
+        {
+            var duplicatedItem = new LineItem
+            {
+                Description = item.Description,
+                Quantity = item.Quantity,
+                UsdAmount = item.UsdAmount,
+                ExchangeRate = item.ExchangeRate,
+                CadAmount = item.CadAmount,
+                GlAccount = item.GlAccount,
+                CostCenter = item.CostCenter,
+                Project = item.Project,
+                Job = item.Job,
+                TaxCode = item.TaxCode,
+                Notes = item.Notes
+            };
+
+            LineItems.Add(duplicatedItem);
+            UnitPricesByRow[duplicatedItem.Id] = GetUnitPrice(item);
+        }
+
+        SelectedRows.Clear();
+        await NotifyLineItemsChanged();
+    }
+
+    private async Task DeleteSelected()
+    {
+        foreach (var itemId in SelectedRows)
+        {
+            UnitPricesByRow.Remove(itemId);
+        }
+
+        LineItems.RemoveAll(i => SelectedRows.Contains(i.Id));
+        SelectedRows.Clear();
+        await NotifyLineItemsChanged();
+    }
+
+    private async Task DistributeRemainder()
+    {
+        if (!LineItems.Any())
+        {
+            return;
+        }
+
+        var expectedCad = TotalUsd * ExchangeRate;
+        var remainder = expectedCad - TotalCad;
+
+        if (Math.Abs(remainder) < 0.01m)
+        {
+            return;
+        }
+
+        var targetId = SelectedRows.Any() ? SelectedRows.First() : LineItems.First().Id;
+        var targetItem = LineItems.FirstOrDefault(i => i.Id == targetId);
+
+        if (targetItem != null)
+        {
+            targetItem.CadAmount += remainder;
+            await NotifyLineItemsChanged();
+        }
+    }
+
+    private async Task HandleQuantityInput(LineItem item, string? rawValue)
+    {
+        var unitPrice = ResolveStableUnitPrice(item);
+
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            item.Quantity = null;
+            await NotifyLineItemsChanged();
+            return;
+        }
+
+        if (!TryParseDecimal(rawValue, out var quantity) || quantity <= 0m)
+        {
+            return;
+        }
+
+        item.Quantity = quantity;
+        item.UsdAmount = quantity * unitPrice;
+        item.CadAmount = item.UsdAmount * item.ExchangeRate;
+        await NotifyLineItemsChanged();
+    }
+
+    private async Task HandleUsdAmountInput(LineItem item, string? rawValue)
+    {
+        var unitPrice = ResolveStableUnitPrice(item);
+
+        if (!TryParseDecimal(rawValue, out var usdAmount))
+        {
+            return;
+        }
+
+        item.UsdAmount = usdAmount;
+
+        if (unitPrice > 0m)
+        {
+            item.Quantity = usdAmount / unitPrice;
+        }
+        else if (item.Quantity.HasValue && item.Quantity.Value > 0m)
+        {
+            UnitPricesByRow[item.Id] = usdAmount / item.Quantity.Value;
+        }
+
+        item.CadAmount = usdAmount * item.ExchangeRate;
+        await NotifyLineItemsChanged();
+    }
+
+    private async Task HandleRateInput(string? rawValue)
+    {
+        if (IsRateLocked)
+        {
+            return;
+        }
+
+        if (!TryParseDecimal(rawValue, out var rate) || rate <= 0m)
+        {
+            return;
+        }
+
+        foreach (var item in LineItems)
+        {
+            item.ExchangeRate = rate;
+            item.CadAmount = item.UsdAmount * rate;
+        }
+
+        await ExchangeRateChanged.InvokeAsync(rate);
+        await NotifyLineItemsChanged();
+    }
+
+    private async Task HandleCadAmountInput(LineItem item, string? rawValue)
+    {
+        if (!TryParseDecimal(rawValue, out var cadAmount))
+        {
+            return;
+        }
+
+        item.CadAmount = cadAmount;
+        await NotifyLineItemsChanged();
+    }
+
+    private void ToggleRowSelection(string id)
+    {
+        if (!SelectedRows.Add(id))
+        {
+            SelectedRows.Remove(id);
+        }
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        if ((bool?)e.Value == true)
+        {
+            SelectedRows = LineItems.Select(i => i.Id).ToHashSet();
+            return;
+        }
+
+        SelectedRows.Clear();
+    }
+
+    private string GetRowClass(string id)
+    {
+        return SelectedRows.Contains(id)
+            ? "border-b border-gray-100 hover:bg-gray-50 bg-blue-50"
+            : "border-b border-gray-100 hover:bg-gray-50";
+    }
+
+    private Task NotifyLineItemsChanged()
+    {
+        return LineItemsChanged.InvokeAsync(LineItems);
+    }
+
+    private void EnsureUnitPriceCache()
+    {
+        var activeIds = LineItems.Select(i => i.Id).ToHashSet();
+        var staleIds = UnitPricesByRow.Keys.Where(id => !activeIds.Contains(id)).ToList();
+
+        foreach (var staleId in staleIds)
+        {
+            UnitPricesByRow.Remove(staleId);
+        }
+
+        foreach (var item in LineItems)
+        {
+            if (!UnitPricesByRow.ContainsKey(item.Id))
+            {
+                UnitPricesByRow[item.Id] = item.Quantity.HasValue && item.Quantity.Value > 0m
+                    ? item.UsdAmount / item.Quantity.Value
+                    : 0m;
+            }
+        }
+    }
+
+    private decimal GetUnitPrice(LineItem item)
+    {
+        if (item.Quantity.HasValue && item.Quantity.Value > 0m)
+        {
+            var unitPrice = item.UsdAmount / item.Quantity.Value;
+            UnitPricesByRow[item.Id] = unitPrice;
+            return unitPrice;
+        }
+
+        if (UnitPricesByRow.TryGetValue(item.Id, out var cached))
+        {
+            return cached;
+        }
+
+        UnitPricesByRow[item.Id] = 0m;
+        return 0m;
+    }
+
+    private decimal ResolveStableUnitPrice(LineItem item)
+    {
+        if (UnitPricesByRow.TryGetValue(item.Id, out var cached) && cached > 0m)
+        {
+            return cached;
+        }
+
+        if (item.Quantity.HasValue && item.Quantity.Value > 0m)
+        {
+            var derived = item.UsdAmount / item.Quantity.Value;
+            UnitPricesByRow[item.Id] = derived;
+            return derived;
+        }
+
+        return 0m;
+    }
+
+    private static string GetQuantityValue(LineItem item)
+    {
+        return item.Quantity?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+    }
+
+    private static bool TryParseDecimal(string? value, out decimal parsed)
+    {
+        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.CurrentCulture, out parsed);
+    }
+}

@@ -1,0 +1,88 @@
+@using Microsoft.AspNetCore.Components.Forms
+
+<div class="bg-white border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition">
+    <InputFile OnChange="HandleFileSelected" accept=".pdf,.jpg,.jpeg,.png" class="hidden" id="fileInput" />
+    
+    @if (!IsProcessing)
+    {
+        <label for="fileInput" class="cursor-pointer">
+            <div class="text-6xl mb-4">📤</div>
+            <p class="text-lg font-medium text-gray-700 mb-2">Upload Invoice</p>
+            <p class="text-sm text-gray-500 mb-4">
+                Click to browse or drag and drop
+            </p>
+            <p class="text-xs text-gray-400">
+                Supports PDF, JPG, PNG (Max 10MB)
+            </p>
+        </label>
+    }
+    else
+    {
+        <div class="text-6xl mb-4">⏳</div>
+        <p class="text-lg font-medium text-gray-700 mb-2">Processing Invoice...</p>
+        <p class="text-sm text-gray-500">
+            Running OCR and extracting data
+        </p>
+        <div class="mt-4">
+            <div class="w-full bg-gray-200 rounded-full h-2">
+                <div class="bg-blue-600 h-2 rounded-full animate-pulse" style="width: 70%"></div>
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="mt-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+            ⚠️ @ErrorMessage
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<(byte[] data, string contentType)> OnFileUploaded { get; set; }
+
+    [Parameter]
+    public bool IsProcessing { get; set; }
+
+    private string? ErrorMessage { get; set; }
+    private const long MaxFileSize = 10 * 1024 * 1024; // 10MB
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        ErrorMessage = null;
+        var file = e.File;
+
+        if (file == null)
+            return;
+
+        // Validate file size
+        if (file.Size > MaxFileSize)
+        {
+            ErrorMessage = $"File size ({file.Size / 1024 / 1024:F1}MB) exceeds maximum allowed size (10MB)";
+            return;
+        }
+
+        // Validate file type
+        var allowedTypes = new[] { "application/pdf", "image/jpeg", "image/jpg", "image/png" };
+        if (!allowedTypes.Contains(file.ContentType?.ToLower()))
+        {
+            ErrorMessage = "Invalid file type. Please upload PDF, JPG, or PNG files only.";
+            return;
+        }
+
+        try
+        {
+            // Read file data
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(MaxFileSize).CopyToAsync(ms);
+            var fileData = ms.ToArray();
+
+            await OnFileUploaded.InvokeAsync((fileData, file.ContentType ?? "application/octet-stream"));
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error reading file: {ex.Message}";
+        }
+    }
+}

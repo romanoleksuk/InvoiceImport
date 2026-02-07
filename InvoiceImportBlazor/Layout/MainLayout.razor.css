@@ -1,0 +1,88 @@
+.page {
+    position: relative;
+    display: flex;
+    min-height: 100vh;
+    background: #f3f4f6;
+}
+
+main {
+    flex: 1;
+    min-width: 0;
+}
+
+.sidebar {
+    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    transition: transform 0.25s ease, width 0.25s ease;
+    z-index: 40;
+}
+
+.sidebar-overlay {
+    display: none;
+}
+
+.top-row {
+    background-color: #f7f7f7;
+    border-bottom: 1px solid #d6d5d5;
+    height: 3.5rem;
+    display: flex;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
+
+.menu-button {
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    background: white;
+    color: #374151;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.menu-button:hover {
+    background: #f3f4f6;
+}
+
+.content {
+    padding-top: 1rem;
+}
+
+@media (min-width: 1024px) {
+    .sidebar {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        width: 260px;
+        overflow: hidden;
+    }
+
+    .page.sidebar-closed .sidebar {
+        width: 0;
+    }
+}
+
+@media (max-width: 1023.98px) {
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 260px;
+        height: 100vh;
+        transform: translateX(-100%);
+        overflow: auto;
+    }
+
+    .page.sidebar-open .sidebar {
+        transform: translateX(0);
+    }
+
+    .page.sidebar-open .sidebar-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.3);
+        z-index: 30;
+    }
+}

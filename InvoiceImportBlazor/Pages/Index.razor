@@ -1,0 +1,150 @@
+@page "/"
+@using InvoiceImportBlazor.Models
+@using InvoiceImportBlazor.Services
+@inject IExportService ExportService
+@inject IOCRService OCRService
+@inject IJSRuntime JS
+@inject InvoiceWorkflowState WorkflowState
+
+@if (WorkflowState.CurrentView == "import")
+{
+    <ImportEntry
+        OnFileUploaded="HandleFileUploaded"
+        IsProcessing="isProcessing" />
+}
+else if (WorkflowState.Invoice != null)
+{
+    <div class="min-h-screen lg:h-full lg:min-h-0 flex flex-col bg-gray-100">
+        <div class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-center gap-3 sm:gap-4 min-w-0">
+                <button @onclick="WorkflowState.SwitchToImportView" class="text-gray-600 hover:text-gray-900 whitespace-nowrap">
+                    &larr; Back
+                </button>
+                <h1 class="text-lg sm:text-xl font-bold text-gray-900 truncate">
+                    Invoice Import - @WorkflowState.Invoice.Header.InvoiceNumber
+                </h1>
+                @if (WorkflowState.OcrResult?.DetectedCurrency != null)
+                {
+                    <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded whitespace-nowrap">
+                        @WorkflowState.OcrResult.DetectedCurrency
+                    </span>
+                }
+            </div>
+            <div class="text-xs sm:text-sm text-gray-600 truncate">
+                @WorkflowState.Invoice.Header.Vendor | @WorkflowState.Invoice.Header.Date
+            </div>
+        </div>
+
+        <div class="flex-1 min-h-0 flex flex-col lg:flex-row overflow-visible lg:overflow-hidden">
+            <div class="w-full min-h-full lg:min-h-0 lg:basis-[20%] lg:min-w-[260px] border-b lg:border-b-0 lg:border-r border-gray-200 overflow-visible lg:overflow-auto">
+                <InvoiceViewer
+                    Header="WorkflowState.Invoice.Header"
+                    ImageData="WorkflowState.OcrResult?.OriginalImageData"
+                    ImageContentType="WorkflowState.OcrResult?.ImageContentType"
+                    FieldConfidences="WorkflowState.OcrResult?.FieldConfidences"
+                    HandwrittenNotes="WorkflowState.OcrResult?.HandwrittenNotes" />
+            </div>
+
+            <div class="w-full min-h-full lg:min-h-0 lg:basis-[20%] lg:min-w-[300px] border-b lg:border-b-0 lg:border-r border-gray-200 overflow-visible lg:overflow-auto">
+                <PostingPreview
+                    UsdTotal="WorkflowState.Invoice.Header.Total"
+                    ExchangeRate="WorkflowState.ExchangeRate"
+                    ExchangeRateChanged="HandleExchangeRateChange"
+                    OnLockRate="WorkflowState.ToggleRateLock"
+                    OnPostInvoice="HandlePostInvoice"
+                    OnExport="HandleExport"
+                    IsRateLocked="WorkflowState.IsRateLocked"
+                    Validation="WorkflowState.ValidationResult?.Status ?? new ValidationStatus()"
+                    ValidationResult="WorkflowState.ValidationResult"
+                    CadDistributionTotal="WorkflowState.GetCadDistributionTotal()"
+                    CanPost="WorkflowState.ValidationResult?.IsValid ?? false" />
+            </div>
+
+            <div class="w-full min-h-full lg:min-h-0 lg:basis-[60%] min-w-0 overflow-visible lg:overflow-auto">
+                <LineItemGrid
+                    LineItems="WorkflowState.Invoice.LineItems"
+                    LineItemsChanged="HandleLineItemsChanged"
+                    ExchangeRate="WorkflowState.ExchangeRate"
+                    IsRateLocked="WorkflowState.IsRateLocked"
+                    ExchangeRateChanged="HandleGridExchangeRateChanged" />
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isProcessing;
+
+    private async Task HandleFileUploaded((byte[] data, string contentType) fileInfo)
+    {
+        isProcessing = true;
+
+        try
+        {
+            var result = await OCRService.ProcessInvoiceAsync(fileInfo.data, fileInfo.contentType);
+            WorkflowState.LoadFromOcrResult(result);
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private Task HandleExchangeRateChange(decimal newRate)
+    {
+        WorkflowState.UpdateExchangeRate(newRate);
+        return Task.CompletedTask;
+    }
+
+    private Task HandleGridExchangeRateChanged(decimal newRate)
+    {
+        WorkflowState.UpdateExchangeRate(newRate);
+        return Task.CompletedTask;
+    }
+
+    private Task HandleLineItemsChanged(List<LineItem> lineItems)
+    {
+        WorkflowState.UpdateLineItems(lineItems, syncRateFromLineItems: true);
+        return Task.CompletedTask;
+    }
+
+    private async Task HandlePostInvoice()
+    {
+        if (WorkflowState.ValidationResult?.IsValid == true)
+        {
+            await JS.InvokeVoidAsync("alert", "Invoice posted successfully!");
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("alert", "Cannot post invoice. Please fix validation errors.");
+        }
+    }
+
+    private async Task HandleExport(string format)
+    {
+        if (WorkflowState.Invoice == null)
+        {
+            return;
+        }
+
+        byte[] exportData;
+        string fileName;
+
+        if (format == ExportFormat.JSON)
+        {
+            exportData = ExportService.ExportToJson(WorkflowState.Invoice, WorkflowState.OcrResult);
+            fileName = ExportService.GetFileName("json", WorkflowState.Invoice.Header.InvoiceNumber);
+        }
+        else if (format == ExportFormat.CSV)
+        {
+            exportData = ExportService.ExportToCsv(WorkflowState.Invoice);
+            fileName = ExportService.GetFileName("csv", WorkflowState.Invoice.Header.InvoiceNumber);
+        }
+        else
+        {
+            return;
+        }
+
+        await JS.InvokeVoidAsync("downloadFile", fileName, Convert.ToBase64String(exportData));
+    }
+}

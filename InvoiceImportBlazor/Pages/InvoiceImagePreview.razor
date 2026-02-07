@@ -1,0 +1,102 @@
+@if (ImageData != null)
+{
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div class="p-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-700">Original Invoice</h3>
+            <button @onclick="ToggleFullscreen" class="text-sm text-blue-600 hover:text-blue-800">
+                @(IsFullscreen ? "📏 Fit" : "🔍 Expand")
+            </button>
+        </div>
+        
+        <div class="@GetPreviewContainerClass()">
+            @if (!string.IsNullOrWhiteSpace(ContentType) && ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            {
+                <img src="@GetImageDataUrl()" 
+                     alt="Invoice" 
+                     class="@(IsFullscreen ? "w-auto max-w-full" : "max-w-full h-auto") shadow-lg" />
+            }
+            else if (IsPdf())
+            {
+                <iframe
+                    src="@GetPdfDataUrl()"
+                    title="Invoice PDF Preview"
+                    class="w-full h-full border-0 bg-white rounded shadow-lg">
+                </iframe>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public byte[]? ImageData { get; set; }
+
+    [Parameter]
+    public string? ContentType { get; set; }
+
+    private bool IsFullscreen { get; set; }
+
+    private void ToggleFullscreen()
+    {
+        IsFullscreen = !IsFullscreen;
+    }
+
+    private string GetPreviewContainerClass()
+    {
+        if (IsPdf())
+        {
+            return IsFullscreen
+                ? "h-[78vh] overflow-hidden bg-gray-100 p-2"
+                : "h-[480px] overflow-hidden bg-gray-100 p-2";
+        }
+
+        return IsFullscreen
+            ? "max-h-[70vh] overflow-auto bg-gray-100 flex items-center justify-center p-4"
+            : "max-h-80 overflow-auto bg-gray-100 flex items-center justify-center p-4";
+    }
+
+    private string GetImageDataUrl()
+    {
+        if (ImageData == null || string.IsNullOrEmpty(ContentType))
+            return string.Empty;
+
+        var base64 = Convert.ToBase64String(ImageData);
+        return $"data:{ContentType};base64,{base64}";
+    }
+
+    private string GetPdfDataUrl()
+    {
+        if (ImageData == null)
+        {
+            return string.Empty;
+        }
+
+        var base64 = Convert.ToBase64String(ImageData);
+        return $"data:application/pdf;base64,{base64}";
+    }
+
+    private bool IsPdf()
+    {
+        return IsPdfContentType() || IsPdfBySignature();
+    }
+
+    private bool IsPdfContentType()
+    {
+        return !string.IsNullOrWhiteSpace(ContentType)
+            && ContentType.Contains("pdf", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsPdfBySignature()
+    {
+        if (ImageData == null || ImageData.Length < 4)
+        {
+            return false;
+        }
+
+        // %PDF
+        return ImageData[0] == 0x25 &&
+               ImageData[1] == 0x50 &&
+               ImageData[2] == 0x44 &&
+               ImageData[3] == 0x46;
+    }
+}

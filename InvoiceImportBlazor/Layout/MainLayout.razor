@@ -1,0 +1,40 @@
+﻿@inherits LayoutComponentBase
+
+<div class="page @(isSidebarOpen ? "sidebar-open" : "sidebar-closed")">
+    <aside class="sidebar">
+        <NavMenu />
+    </aside>
+
+    <div class="sidebar-overlay" @onclick="CloseSidebar"></div>
+
+    <main>
+        <div class="top-row px-4">
+            <button class="menu-button" @onclick="ToggleSidebar" aria-label="Toggle menu" type="button">
+                ☰ Menu
+            </button>
+        </div>
+
+        <article class="content px-3 sm:px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    private bool isSidebarOpen;
+
+    protected override void OnInitialized()
+    {
+        isSidebarOpen = false;
+    }
+
+    private void ToggleSidebar()
+    {
+        isSidebarOpen = !isSidebarOpen;
+    }
+
+    private void CloseSidebar()
+    {
+        isSidebarOpen = false;
+    }
+}

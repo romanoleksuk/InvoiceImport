@@ -1,0 +1,148 @@
+@using InvoiceImportBlazor.Models
+
+<div class="h-full flex flex-col bg-white">
+    <div class="p-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Invoice Review</h2>
+    </div>
+
+    <div class="flex-1 p-4 overflow-visible lg:overflow-y-auto">
+        <!-- Invoice Image Preview -->
+        <div class="mb-4">
+            @if (ImageData != null)
+            {
+                <InvoiceImagePreview ImageData="ImageData" ContentType="ImageContentType" />
+            }
+            else
+            {
+                <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <div class="p-3 bg-gray-50 border-b border-gray-200">
+                        <h3 class="text-sm font-semibold text-gray-700">Original Invoice</h3>
+                    </div>
+                    <div class="max-h-80 bg-gray-100 flex items-center justify-center p-8">
+                        <div class="text-center py-8">
+                            <div class="text-6xl mb-4">📄</div>
+                            <p class="text-gray-600 font-medium mb-2">Sample Invoice Preview</p>
+                            <p class="text-sm text-gray-500">
+                                Upload a real invoice to see the document preview here
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Confidence Scores -->
+        @if (FieldConfidences != null && FieldConfidences.Any())
+        {
+            <ConfidenceScoreDisplay FieldConfidences="FieldConfidences" />
+        }
+
+        <!-- Handwritten Notes -->
+        @if (HandwrittenNotes != null && HandwrittenNotes.Any())
+        {
+            <div class="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <h4 class="text-sm font-semibold text-blue-900 mb-2">📝 Handwritten Notes (OCR)</h4>
+                <ul class="text-sm text-blue-800 space-y-1">
+                    @foreach (var note in HandwrittenNotes)
+                    {
+                        <li>• @note</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <!-- Header Fields -->
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 shadow-sm">
+            <h3 class="text-sm font-semibold text-gray-700 mb-4 uppercase">
+                Invoice Header Fields
+            </h3>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">
+                        Vendor
+                    </label>
+                    <p class="text-sm font-medium text-gray-900">@Header.Vendor</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">
+                        Invoice #
+                    </label>
+                    <p class="text-sm font-medium text-gray-900">@Header.InvoiceNumber</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">
+                        Date
+                    </label>
+                    <p class="text-sm font-medium text-gray-900">@Header.Date</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">
+                        Currency
+                    </label>
+                    <p class="text-sm font-medium text-gray-900">@Header.Currency</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">
+                        Terms
+                    </label>
+                    <p class="text-sm font-medium text-gray-900">@Header.Terms</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">
+                        Total
+                    </label>
+                    <p class="text-sm font-semibold text-gray-900">
+                        @Header.Currency $@Header.Total.ToString("N2")
+                    </p>
+                </div>
+
+                @if (Header.Tax.HasValue)
+                {
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">
+                            Tax
+                        </label>
+                        <p class="text-sm font-medium text-gray-900">
+                            $@Header.Tax.Value.ToString("N2")
+                        </p>
+                    </div>
+                }
+
+                @if (Header.Freight.HasValue)
+                {
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">
+                            Freight
+                        </label>
+                        <p class="text-sm font-medium text-gray-900">
+                            $@Header.Freight.Value.ToString("N2")
+                        </p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public InvoiceHeader Header { get; set; } = new();
+
+    [Parameter]
+    public byte[]? ImageData { get; set; }
+
+    [Parameter]
+    public string? ImageContentType { get; set; }
+
+    [Parameter]
+    public Dictionary<string, FieldConfidence>? FieldConfidences { get; set; }
+
+    [Parameter]
+    public List<string>? HandwrittenNotes { get; set; }
+}

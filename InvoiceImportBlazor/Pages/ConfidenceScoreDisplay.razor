@@ -1,0 +1,102 @@
+@using InvoiceImportBlazor.Models
+
+<div class="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+    <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-semibold text-gray-700 uppercase">
+            Field Confidence Scores
+        </h3>
+        <button @onclick="ToggleExpanded" class="text-xs text-blue-600 hover:text-blue-800">
+            @(IsExpanded ? "▼ Collapse" : "▶ Expand")
+        </button>
+    </div>
+
+    @if (LowConfidenceFields.Any())
+    {
+        <div class="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+            ⚠️ <strong>@LowConfidenceFields.Count</strong> field(s) have low confidence. Please review.
+        </div>
+    }
+
+    @if (IsExpanded && FieldConfidences.Any())
+    {
+        <div class="space-y-2">
+            @foreach (var conf in FieldConfidences.OrderBy(f => f.Value.Score))
+            {
+                <div class="flex items-center gap-3">
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs font-medium text-gray-600">@conf.Value.FieldName</span>
+                            <span class="text-xs font-semibold @GetScoreColor(conf.Value)">
+                                @conf.Value.Score.ToString("F1")%
+                            </span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="@GetBarColor(conf.Value) h-2 rounded-full" 
+                                 style="width: @(conf.Value.Score)%"></div>
+                        </div>
+                    </div>
+                    <span class="text-xs">@GetConfidenceIcon(conf.Value)</span>
+                </div>
+            }
+        </div>
+    }
+    else if (!IsExpanded && LowConfidenceFields.Any())
+    {
+        <div class="flex flex-wrap gap-2">
+            @foreach (var field in LowConfidenceFields)
+            {
+                <span class="inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
+                    ⚠️ @field.FieldName (@field.Score.ToString("F0")%)
+                </span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Dictionary<string, FieldConfidence> FieldConfidences { get; set; } = new();
+
+    private bool IsExpanded { get; set; } = false;
+
+    private List<FieldConfidence> LowConfidenceFields => 
+        FieldConfidences.Values.Where(f => f.IsLowConfidence).ToList();
+
+    private void ToggleExpanded()
+    {
+        IsExpanded = !IsExpanded;
+    }
+
+    private string GetScoreColor(FieldConfidence conf)
+    {
+        return conf.Level switch
+        {
+            ConfidenceLevel.High => "text-green-600",
+            ConfidenceLevel.Medium => "text-yellow-600",
+            ConfidenceLevel.Low => "text-red-600",
+            _ => "text-gray-600"
+        };
+    }
+
+    private string GetBarColor(FieldConfidence conf)
+    {
+        return conf.Level switch
+        {
+            ConfidenceLevel.High => "bg-green-500",
+            ConfidenceLevel.Medium => "bg-yellow-500",
+            ConfidenceLevel.Low => "bg-red-500",
+            _ => "bg-gray-500"
+        };
+    }
+
+    private string GetConfidenceIcon(FieldConfidence conf)
+    {
+        return conf.Level switch
+        {
+            ConfidenceLevel.High => "✅",
+            ConfidenceLevel.Medium => "⚠️",
+            ConfidenceLevel.Low => "❌",
+            _ => "❓"
+        };
+    }
+}
